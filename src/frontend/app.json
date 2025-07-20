@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Breathe",
+    "slug": "breathe",
+    "scheme": "breathe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/breathe-icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/breathe-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F5DC"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.krishna.breathe",
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/breathe-icon.png",
+        "backgroundColor": "#F5F5DC"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "364e138f-d74c-46ca-9495-5e3ebf11cc78"
+      }
+    }
+  }
+}
