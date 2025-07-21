@@ -15,6 +15,11 @@ const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 // let lastResult = null;
 // let lastFetchTime = 0;
 
+// default route to check if backend is running
+app.get("/", (req, res) => {
+  res.send("Backend is running!");
+});
+
 app.get('/api/weatherToday', async (req, res) => {
   const { lat, lon, units = "metric" } = req.query;
   if (!lat || !lon) return res.status(400).json({ error: 'lat/lon required' });
