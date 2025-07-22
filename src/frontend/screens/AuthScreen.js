@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { View, TextInput, Text, Alert, Pressable } from 'react-native';
 import { auth, db } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { globalStyles, colors } from '../styles/theme';
 
-export default function AuthScreen() {
+export default function AuthScreen({ onRegister }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -15,14 +15,33 @@ export default function AuthScreen() {
     try {
       if (isRegistering) {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
+        // Set displayName in Firebase Auth profile
+        await updateProfile(userCred.user, { displayName: name });
         await setDoc(doc(db, "users", userCred.user.uid), {
           name,
           email
         });
+        if (onRegister) onRegister(name);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
     //   onLogin();
+    } catch (err) {
+      Alert.alert("Error", err.message);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert("Error", "Please enter your email address first.");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      Alert.alert(
+        "Password Reset",
+        "A password reset email will be sent shortly. Please check your inbox (it might go to spam)."
+      );
     } catch (err) {
       Alert.alert("Error", err.message);
     }
@@ -64,8 +83,16 @@ export default function AuthScreen() {
           {isRegistering ? "Sign Up" : "Login"}
         </Text>
       </Pressable>
+      {!isRegistering && (
+        <Text
+          style={[globalStyles.text, { color: colors.red, marginTop: 10, textAlign: "center" }]}
+          onPress={handleForgotPassword}
+        >
+          Forgot Password?
+        </Text>
+      )}
       <Text
-        style={globalStyles.text}
+        style={[globalStyles.text, { marginTop: 10, textAlign: "center" }]}
         onPress={() => setIsRegistering(!isRegistering)}
       >
         {isRegistering ? "Already have an account? Login" : "Don't have an account? Sign Up"}

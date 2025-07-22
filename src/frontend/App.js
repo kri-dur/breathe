@@ -24,14 +24,16 @@ function MainTabs() {
     <Tab.Navigator
       initialRouteName="Track"
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, color }) => {
           let iconName;
           if (route.name === "Track") iconName = focused ? "calendar" : "calendar-outline";
           else if (route.name === "Account") iconName = focused ? "person" : "person-outline";
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName} size={30} color={color} />; // <-- bigger icon
         },
-        tabBarActiveTintColor: colors.sage, 
+        tabBarActiveTintColor: colors.sage,
         tabBarInactiveTintColor: "gray",
+        tabBarLabelPosition: "below-icon",
+        tabBarLabelStyle: { fontSize: 14 },
         headerShown: false,
       })}
     >
@@ -46,6 +48,7 @@ export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [welcomeName, setWelcomeName] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -71,13 +74,20 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthScreen />;
+    return (
+      <AuthScreen
+        onRegister={(name) => {
+          setWelcomeName(name);
+          setShowWelcome(true);
+        }}
+      />
+    );
   }
 
   if (showWelcome) {
     return (
       <WelcomeScreen
-        displayName={user.displayName || "User"}
+        displayName={welcomeName || (user && user.displayName) || ""}
         onFinish={() => setShowWelcome(false)}
       />
     );

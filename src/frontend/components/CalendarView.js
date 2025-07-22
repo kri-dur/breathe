@@ -27,7 +27,7 @@ const SIDE_PADDING = (SCREEN_WIDTH - CARD_WIDTH) / 100;
 async function fetchWeather(lat, lon, units = "metric") {
   try {
     const res = await fetch(
-      `http://192.168.1.105:3000/api/weatherToday?lat=${lat}&lon=${lon}&units=${units}`
+      `https://breathe-9l3w.onrender.com/api/weatherToday?lat=${lat}&lon=${lon}&units=${units}`
     );
     if (!res.ok) throw new Error("Weather fetch failed");
     return await res.json();
@@ -42,6 +42,7 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editedText, setEditedText] = useState("");
   const [newSymptomText, setNewSymptomText] = useState("");
+  const [loading, setLoading] = useState(false); // <-- Add this line
 
   const saveSymptoms = async (updated) => {
     await onUpdate(date, updated);
@@ -62,9 +63,15 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
 
   const addSymptom = async () => {
     if (!newSymptomText.trim()) return;
-    const updated = [...symptoms, newSymptomText.trim()];
-    await saveSymptoms(updated);
-    setNewSymptomText("");
+    setLoading(true); // <-- Show loading indicator
+    try {
+      // Call onUpdate, which should fetch weather if needed
+      await onUpdate(date, [...symptoms, newSymptomText.trim()]);
+      setSymptoms([...symptoms, newSymptomText.trim()]);
+      setNewSymptomText("");
+    } finally {
+      setLoading(false); // <-- Hide loading indicator
+    }
   };
 
   return (
@@ -78,7 +85,7 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
       ) : (
         symptoms.map((s, i) => (
           <View key={i} style={styles.symptomRow}>
-            {editingIndex === i && canLogSymptoms ? (
+            {editingIndex === i && isToday ? (
               <>
                 <TextInput
                   value={editedText}
@@ -95,7 +102,7 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
             ) : (
               <>
                 <Text style={styles.bullet}>• {s}</Text>
-                {canLogSymptoms && (
+                {isToday && (
                   <>
                     <TouchableOpacity
                       onPress={() => {
@@ -116,7 +123,7 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
         ))
       )}
 
-      {canLogSymptoms && (
+      {canLogSymptoms && isToday && (
         <View style={styles.addRow}>
           <TextInput
             value={newSymptomText}
@@ -130,20 +137,32 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
         </View>
       )}
 
-      {/* Only display weather if symptoms exist, weather is stored, and it's today */}
-      {isToday && log.weather && (
+      {/* Loading indicator when adding symptom */}
+      {loading && (
+        <View style={{ alignItems: "center", marginVertical: 10 }}>
+          <ActivityIndicator size="small" color={colors.sage} />
+          <Text style={{ marginTop: 5, color: colors.sage }}>
+            Adding Symptom...
+          </Text>
+        </View>
+      )}
+
+      {(isToday
+        ? log.weather // for today, show weather if present
+        : log.weather && log.symptoms && log.symptoms.length > 0) && ( // for past days, only if symptoms exist
         <>
           <Text style={styles.sectionTitle}>Weather:</Text>
-          <Text style={styles.text}>
-            Air Quality: {log.weather.category}
-          </Text>
+          <Text style={styles.text}>Air Quality: {log.weather.category}</Text>
           <Text style={styles.text}>Humidity: {log.weather.humidity}%</Text>
           <Text style={styles.text}>
             Temp: {log.weather.temp}
             {log.weather.units === "imperial" ? "°F" : "°C"}
-            {((log.weather.units === "imperial" && (log.weather.temp > 90 || log.weather.temp < 41)) ||
-              (log.weather.units !== "imperial" && (log.weather.temp > 32 || log.weather.temp < 10)))
-              ? " (Extreme)" : ""}
+            {(log.weather.units === "imperial" &&
+              (log.weather.temp > 90 || log.weather.temp < 41)) ||
+            (log.weather.units !== "imperial" &&
+              (log.weather.temp > 32 || log.weather.temp < 10))
+              ? " (Extreme)"
+              : ""}
           </Text>
           <Text style={styles.text}>Rain: {log.weather.rain}</Text>
 
@@ -163,14 +182,14 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
             }
             // Temp: >30°C or <10°C is extreme (or >86°F or <50°F)
             if (
-              (log.weather.units === "imperial" && (log.weather.temp > 86))
-              || (log.weather.units !== "imperial" && (log.weather.temp > 30))
+              (log.weather.units === "imperial" && log.weather.temp > 86) ||
+              (log.weather.units !== "imperial" && log.weather.temp > 30)
             ) {
               extremeMessages.push("high temperatures");
             }
             if (
-              (log.weather.units === "imperial" && (log.weather.temp < 50))
-              || (log.weather.units !== "imperial" && (log.weather.temp < 10))
+              (log.weather.units === "imperial" && log.weather.temp < 50) ||
+              (log.weather.units !== "imperial" && log.weather.temp < 10)
             ) {
               extremeMessages.push("low temperatures");
             }
@@ -190,19 +209,20 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
             } else {
               return (
                 <Text style={styles.extremeWeather}>
-                  {`${
-                    extremeMessages
-                      .map((msg) => {
-                        if (msg === "low air quality") return "Low air quality";
-                        if (msg === "high humidity") return "High humidity";
-                        if (msg === "low humidity") return "Low humidity";
-                        if (msg === "high temperatures") return "High temperatures";
-                        if (msg === "low temperatures") return "Low temperatures";
-                        if (msg === "chances of rain") return "Chances of rain";
-                        return msg;
-                      })
-                      .join(", ")
-                  } may cause symptoms to flare up today.\nBe cautious!`}
+                  {`${extremeMessages
+                    .map((msg) => {
+                      if (msg === "low air quality") return "Low air quality";
+                      if (msg === "high humidity") return "High humidity";
+                      if (msg === "low humidity") return "Low humidity";
+                      if (msg === "high temperatures")
+                        return "High temperatures";
+                      if (msg === "low temperatures") return "Low temperatures";
+                      if (msg === "chances of rain") return "Chances of rain";
+                      return msg;
+                    })
+                    .join(
+                      ", "
+                    )} may cause symptoms to flare up today.\nBe cautious!`}
                 </Text>
               );
             }
@@ -307,7 +327,10 @@ export default function CalendarView({ selectedDate }) {
       // Reverse geocode to get country code
       let units = "metric";
       try {
-        const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+        const geo = await Location.reverseGeocodeAsync({
+          latitude: lat,
+          longitude: lon,
+        });
         // Some platforms use 'isoCountryCode', some use 'country' (e.g. 'US')
         const countryCode = geo[0]?.isoCountryCode || geo[0]?.country;
         if (countryCode === "US" || countryCode === "United States") {
@@ -355,8 +378,7 @@ export default function CalendarView({ selectedDate }) {
     const todayStr = format(new Date(), "yyyy-MM-dd");
     const log = logs[item.date] || { symptoms: [], weather: null };
     const isToday = item.date === todayStr;
-    const canLogSymptoms =
-      isToday || (log.symptoms && log.symptoms.length > 0);
+    const canLogSymptoms = isToday || (log.symptoms && log.symptoms.length > 0);
 
     return (
       <View style={styles.page}>
@@ -373,7 +395,14 @@ export default function CalendarView({ selectedDate }) {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.beige }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: colors.beige,
+        }}
+      >
         <ActivityIndicator size="large" color={colors.sage} />
       </View>
     );
@@ -515,15 +544,15 @@ const styles = StyleSheet.create({
   normalWeather: {
     color: colors.sage,
     fontStyle: "italic",
-    marginTop: 20,         // Increased margin
+    marginTop: 20, // Increased margin
     textAlign: "center",
-    fontSize: 18,          // Larger text
+    fontSize: 18, // Larger text
   },
   extremeWeather: {
     color: colors.brown,
     fontWeight: "bold",
-    marginTop: 20,         // Increased margin
+    marginTop: 20, // Increased margin
     textAlign: "center",
-    fontSize: 18,          // Larger
+    fontSize: 18, // Larger
   },
 });

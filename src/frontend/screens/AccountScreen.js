@@ -10,6 +10,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
+import * as Clipboard from 'expo-clipboard';
 import { auth } from "../firebase";
 import { updateProfile, updatePassword, signOut } from "firebase/auth";
 import { globalStyles, colors } from "../styles/theme";
@@ -36,7 +37,11 @@ export default function AccountScreen() {
     try {
       await updatePassword(user, newPassword);
       setNewPassword("");
-      Alert.alert("Success", "Password updated successfully.");
+      Alert.alert(
+        "Success",
+        "Password updated successfully and has been copied to your clipboard.\n\nPlease update your password in your device's password manager when logging back in."
+      );
+      Clipboard.setStringAsync(newPassword); // Optionally copy to clipboard
     } catch (err) {
       Alert.alert("Error", err.message);
     }

@@ -18,6 +18,7 @@
     "date-fns": "^4.1.0",
     "expo": "~53.0.13",
     "expo-auth-session": "~6.2.1",
+    "expo-clipboard": "^7.1.5",
     "expo-font": "~13.3.2",
     "expo-location": "~18.1.6",
     "expo-status-bar": "~2.2.3",
