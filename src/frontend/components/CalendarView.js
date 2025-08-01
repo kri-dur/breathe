@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  ScrollView,
+  Alert,
 } from "react-native";
 import { format, addDays, parse } from "date-fns";
 import { onAuthStateChanged } from "firebase/auth";
@@ -55,54 +57,78 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
   };
 
   const updateSymptom = async (index, text) => {
+    const trimmedText = text.trim();
+    // check for duplicates (case-insensitive), excluding the current index
+    const alreadyExists = symptoms.some(
+      (s, i) => i !== index && s.trim().toLowerCase() === trimmedText.toLowerCase()
+    );
+    if (alreadyExists) {
+      Alert.alert("Duplicate Symptom", "This symptom has already been added.");
+      return;
+    }
     const updated = [...symptoms];
-    updated[index] = text.trim();
+    updated[index] = trimmedText;
     await saveSymptoms(updated);
     setEditingIndex(null);
   };
 
   const addSymptom = async () => {
-    if (!newSymptomText.trim()) return;
-    setLoading(true); // <-- Show loading indicator
+    const newSymptom = newSymptomText.trim();
+    if (!newSymptom) return;
+
+    // check for duplicates (case-insensitive)
+    const alreadyExists = symptoms.some(
+      (s) => s.trim().toLowerCase() === newSymptom.toLowerCase()
+    );
+    if (alreadyExists) {
+      Alert.alert("Duplicate Symptom", "This symptom has already been added.");
+      return;
+    }
+
+    setLoading(true); //show loading indicator
     try {
-      // Call onUpdate, which should fetch weather if needed
-      await onUpdate(date, [...symptoms, newSymptomText.trim()]);
-      setSymptoms([...symptoms, newSymptomText.trim()]);
+      // call onUpdate, which should fetch weather if needed
+      await onUpdate(date, [...symptoms, newSymptom]);
+      setSymptoms([...symptoms, newSymptom]);
       setNewSymptomText("");
     } finally {
-      setLoading(false); // <-- Hide loading indicator
+      setLoading(false); // hide loading indicator
     }
   };
 
   return (
     <View style={styles.card}>
-      <Text style={styles.dateText}>
-        {format(parse(date, "yyyy-MM-dd", new Date()), "MMMM d, yyyy")}
-      </Text>
-      <Text style={styles.sectionTitle}>Symptoms:</Text>
-      {symptoms.length === 0 ? (
-        <Text style={styles.none}>No symptoms logged</Text>
-      ) : (
-        symptoms.map((s, i) => (
-          <View key={i} style={styles.symptomRow}>
-            {editingIndex === i && isToday ? (
-              <>
-                <TextInput
-                  value={editedText}
-                  onChangeText={setEditedText}
-                  style={styles.input}
-                />
-                <TouchableOpacity onPress={() => updateSymptom(i, editedText)}>
-                  <Text style={styles.smallBtn}>✅</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setEditingIndex(null)}>
-                  <Text style={styles.smallBtn}>❌</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.bullet}>• {s}</Text>
-                {isToday && (
+      <ScrollView
+        style={{ maxHeight: 400 }} 
+        contentContainerStyle={{ paddingBottom: 10 }}
+        showsVerticalScrollIndicator={true}
+      >
+        <Text style={styles.dateText}>
+          {format(parse(date, "yyyy-MM-dd", new Date()), "MMMM d, yyyy")}
+        </Text>
+        <Text style={styles.sectionTitle}>Symptoms:</Text>
+        {symptoms.length === 0 ? (
+          <Text style={styles.none}>No symptoms logged</Text>
+        ) : (
+          symptoms.map((s, i) => (
+            <View key={i} style={styles.symptomRow}>
+              {editingIndex === i ? (
+                <>
+                  <TextInput
+                    value={editedText}
+                    onChangeText={setEditedText}
+                    style={styles.input}
+                  />
+                  <TouchableOpacity onPress={() => updateSymptom(i, editedText)}>
+                    <Text style={styles.smallBtn}>✅</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setEditingIndex(null)}>
+                    <Text style={styles.smallBtn}>❌</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.bullet}>• {s}</Text>
                   <>
                     <TouchableOpacity
                       onPress={() => {
@@ -116,119 +142,117 @@ function SymptomCard({ date, log, onUpdate, isToday, canLogSymptoms }) {
                       <Text style={styles.smallBtn}>🗑</Text>
                     </TouchableOpacity>
                   </>
-                )}
-              </>
-            )}
+                </>
+              )}
+            </View>
+          ))
+        )}
+
+        {canLogSymptoms && (
+          <View style={styles.addRow}>
+            <TextInput
+              value={newSymptomText}
+              onChangeText={setNewSymptomText}
+              placeholder="Add symptom"
+              style={styles.input}
+            />
+            <TouchableOpacity onPress={addSymptom}>
+              <Text style={styles.smallBtn}>➕</Text>
+            </TouchableOpacity>
           </View>
-        ))
-      )}
+        )}
 
-      {canLogSymptoms && isToday && (
-        <View style={styles.addRow}>
-          <TextInput
-            value={newSymptomText}
-            onChangeText={setNewSymptomText}
-            placeholder="Add symptom"
-            style={styles.input}
-          />
-          <TouchableOpacity onPress={addSymptom}>
-            <Text style={styles.smallBtn}>➕</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        {/* Loading indicator when adding symptom */}
+        {loading && (
+          <View style={{ alignItems: "center", marginVertical: 10 }}>
+            <ActivityIndicator size="small" color={colors.sage} />
+            <Text style={{ marginTop: 5, color: colors.sage }}>
+              Adding Symptom...
+            </Text>
+          </View>
+        )}
 
-      {/* Loading indicator when adding symptom */}
-      {loading && (
-        <View style={{ alignItems: "center", marginVertical: 10 }}>
-          <ActivityIndicator size="small" color={colors.sage} />
-          <Text style={{ marginTop: 5, color: colors.sage }}>
-            Adding Symptom...
-          </Text>
-        </View>
-      )}
+        {log.weather && (
+          <>
+            <Text style={styles.sectionTitle}>Weather:</Text>
+            <Text style={styles.text}>Air Quality: {log.weather.category}</Text>
+            <Text style={styles.text}>Humidity: {log.weather.humidity}%</Text>
+            <Text style={styles.text}>
+              Temp: {log.weather.temp}
+              {log.weather.units === "imperial" ? "°F" : "°C"}
+              {(log.weather.units === "imperial" &&
+                (log.weather.temp > 90 || log.weather.temp < 41)) ||
+              (log.weather.units !== "imperial" &&
+                (log.weather.temp > 32 || log.weather.temp < 10))
+                ? " (Extreme)"
+                : ""}
+            </Text>
+            <Text style={styles.text}>Rain: {log.weather.rain}</Text>
 
-      {(isToday
-        ? log.weather // for today, show weather if present
-        : log.weather && log.symptoms && log.symptoms.length > 0) && ( // for past days, only if symptoms exist
-        <>
-          <Text style={styles.sectionTitle}>Weather:</Text>
-          <Text style={styles.text}>Air Quality: {log.weather.category}</Text>
-          <Text style={styles.text}>Humidity: {log.weather.humidity}%</Text>
-          <Text style={styles.text}>
-            Temp: {log.weather.temp}
-            {log.weather.units === "imperial" ? "°F" : "°C"}
-            {(log.weather.units === "imperial" &&
-              (log.weather.temp > 90 || log.weather.temp < 41)) ||
-            (log.weather.units !== "imperial" &&
-              (log.weather.temp > 32 || log.weather.temp < 10))
-              ? " (Extreme)"
-              : ""}
-          </Text>
-          <Text style={styles.text}>Rain: {log.weather.rain}</Text>
+            {/* Dynamic weather message */}
+            {(() => {
+              const extremeMessages = [];
+              // AQI: 3-5 is extreme
+              if (log.weather.AQI >= 3) {
+                extremeMessages.push("low air quality");
+              }
+              // Humidity: >60% or <30% is extreme
+              if (log.weather.humidity > 60) {
+                extremeMessages.push("high humidity");
+              }
+              if (log.weather.humidity < 30) {
+                extremeMessages.push("low humidity");
+              }
+              // Temp: >30°C or <10°C is extreme (or >86°F or <50°F)
+              if (
+                (log.weather.units === "imperial" && log.weather.temp > 86) ||
+                (log.weather.units !== "imperial" && log.weather.temp > 30)
+              ) {
+                extremeMessages.push("high temperatures");
+              }
+              if (
+                (log.weather.units === "imperial" && log.weather.temp < 50) ||
+                (log.weather.units !== "imperial" && log.weather.temp < 10)
+              ) {
+                extremeMessages.push("low temperatures");
+              }
+              // Rain present
+              if (log.weather.rain === "Yes") {
+                extremeMessages.push("chances of rain");
+              }
 
-          {/* Dynamic weather message */}
-          {(() => {
-            const extremeMessages = [];
-            // AQI: 3-5 is extreme
-            if (log.weather.AQI >= 3) {
-              extremeMessages.push("low air quality");
-            }
-            // Humidity: >60% or <30% is extreme
-            if (log.weather.humidity > 60) {
-              extremeMessages.push("high humidity");
-            }
-            if (log.weather.humidity < 30) {
-              extremeMessages.push("low humidity");
-            }
-            // Temp: >30°C or <10°C is extreme (or >86°F or <50°F)
-            if (
-              (log.weather.units === "imperial" && log.weather.temp > 86) ||
-              (log.weather.units !== "imperial" && log.weather.temp > 30)
-            ) {
-              extremeMessages.push("high temperatures");
-            }
-            if (
-              (log.weather.units === "imperial" && log.weather.temp < 50) ||
-              (log.weather.units !== "imperial" && log.weather.temp < 10)
-            ) {
-              extremeMessages.push("low temperatures");
-            }
-            // Rain present
-            if (log.weather.rain === "Yes") {
-              extremeMessages.push("chances of rain");
-            }
-
-            if (extremeMessages.length === 0) {
-              return (
-                <Text style={styles.normalWeather}>
-                  Weather conditions are normal today.
-                  {"\n"}
-                  Enjoy your day!
-                </Text>
-              );
-            } else {
-              return (
-                <Text style={styles.extremeWeather}>
-                  {`${extremeMessages
-                    .map((msg) => {
-                      if (msg === "low air quality") return "Low air quality";
-                      if (msg === "high humidity") return "High humidity";
-                      if (msg === "low humidity") return "Low humidity";
-                      if (msg === "high temperatures")
-                        return "High temperatures";
-                      if (msg === "low temperatures") return "Low temperatures";
-                      if (msg === "chances of rain") return "Chances of rain";
-                      return msg;
-                    })
-                    .join(
-                      ", "
-                    )} may cause symptoms to flare up today.\nBe cautious!`}
-                </Text>
-              );
-            }
-          })()}
-        </>
-      )}
+              if (extremeMessages.length === 0) {
+                return (
+                  <Text style={styles.normalWeather}>
+                    Weather conditions are normal today.
+                    {"\n"}
+                    Enjoy your day!
+                  </Text>
+                );
+              } else {
+                return (
+                  <Text style={styles.extremeWeather}>
+                    {`${extremeMessages
+                      .map((msg) => {
+                        if (msg === "low air quality") return "Low air quality";
+                        if (msg === "high humidity") return "High humidity";
+                        if (msg === "low humidity") return "Low humidity";
+                        if (msg === "high temperatures")
+                          return "High temperatures";
+                        if (msg === "low temperatures") return "Low temperatures";
+                        if (msg === "chances of rain") return "Chances of rain";
+                        return msg;
+                      })
+                      .join(
+                        ", "
+                      )} may cause symptoms to flare up today.\nBe cautious!`}
+                  </Text>
+                );
+              }
+            })()}
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -250,7 +274,7 @@ export default function CalendarView({ selectedDate }) {
   useEffect(() => {
     if (!user) return;
 
-    setLoading(true); // Start loading
+    setLoading(true);
     const generateDaysAndFetchLogs = async () => {
       const list = [];
       const newLogs = {};
@@ -258,7 +282,7 @@ export default function CalendarView({ selectedDate }) {
       centerDate.setHours(0, 0, 0, 0);
 
       const allDates = [];
-      for (let i = -5; i <= 5; i++) {
+      for (let i = -4; i <= 6; i++) {
         const date = format(addDays(centerDate, i), "yyyy-MM-dd");
         allDates.push(date);
       }
@@ -271,14 +295,40 @@ export default function CalendarView({ selectedDate }) {
 
         const ref = doc(db, "users", user.uid, "logs", date);
         const snap = await getDoc(ref);
-        if (snap.exists()) {
-          newLogs[date] = snap.data();
+        let logData = snap.exists() ? snap.data() : {};
+
+        // Only fetch weather for today if missing
+        if (date === todayStr && !logData.weather) {
+          let lat = 37.7749, lon = -122.4194; // Default: San Francisco
+          let units = "metric";
+          try {
+            let location = await Location.getLastKnownPositionAsync();
+            if (location) {
+              lat = location.coords.latitude;
+              lon = location.coords.longitude;
+              const geo = await Location.reverseGeocodeAsync({
+                latitude: lat,
+                longitude: lon,
+              });
+              const countryCode = geo[0]?.isoCountryCode || geo[0]?.country;
+              if (countryCode === "US" || countryCode === "United States") {
+                units = "imperial";
+              }
+            }
+          } catch (err) {
+            // Use default location/units
+          }
+          const weather = await fetchWeather(lat, lon, units);
+          logData.weather = weather;
+          await setDoc(ref, { ...logData }, { merge: true });
         }
+
+        newLogs[date] = logData;
       }
 
       setDays(list);
       setLogs(newLogs);
-      setLoading(false); // End loading
+      setLoading(false);
 
       setTimeout(() => {
         const index = list.findIndex(
@@ -295,16 +345,11 @@ export default function CalendarView({ selectedDate }) {
   }, [selectedDate, user]);
 
   const updateSymptoms = async (date, symptoms) => {
-    const todayStr = format(new Date(), "yyyy-MM-dd");
     const ref = doc(db, "users", user.uid, "logs", date);
     const prev = logs[date] || { weather: null };
 
-    // Only allow logging symptoms for today or for days that already have symptoms
-    if (date !== todayStr && (!prev.symptoms || prev.symptoms.length === 0)) {
-      return;
-    }
-
     // Only fetch weather if symptoms are being logged for the first time AND it's today
+    const todayStr = format(new Date(), "yyyy-MM-dd");
     if (
       date === todayStr &&
       (!prev.symptoms || prev.symptoms.length === 0) &&
@@ -331,7 +376,6 @@ export default function CalendarView({ selectedDate }) {
           latitude: lat,
           longitude: lon,
         });
-        // Some platforms use 'isoCountryCode', some use 'country' (e.g. 'US')
         const countryCode = geo[0]?.isoCountryCode || geo[0]?.country;
         if (countryCode === "US" || countryCode === "United States") {
           units = "imperial";
@@ -378,7 +422,7 @@ export default function CalendarView({ selectedDate }) {
     const todayStr = format(new Date(), "yyyy-MM-dd");
     const log = logs[item.date] || { symptoms: [], weather: null };
     const isToday = item.date === todayStr;
-    const canLogSymptoms = isToday || (log.symptoms && log.symptoms.length > 0);
+    const canLogSymptoms = true;
 
     return (
       <View style={styles.page}>
@@ -410,12 +454,15 @@ export default function CalendarView({ selectedDate }) {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.arrowLeft}
-        onPress={() => scrollToIndex(currentIndex - 1)}
-      >
-        <Ionicons name="chevron-back" size={28} color={colors.black} />
-      </TouchableOpacity>
+      {/* Left Arrow: only show if not at the first day */}
+      {currentIndex > 0 && (
+        <TouchableOpacity
+          style={styles.arrowLeft}
+          onPress={() => scrollToIndex(currentIndex - 1)}
+        >
+          <Ionicons name="chevron-back" size={28} color={colors.black} />
+        </TouchableOpacity>
+      )}
 
       <FlatList
         ref={listRef}
@@ -441,12 +488,15 @@ export default function CalendarView({ selectedDate }) {
         }}
       />
 
-      <TouchableOpacity
-        style={styles.arrowRight}
-        onPress={() => scrollToIndex(currentIndex + 1)}
-      >
-        <Ionicons name="chevron-forward" size={28} color={colors.black} />
-      </TouchableOpacity>
+      {/* Right Arrow: only show if not at the last day */}
+      {currentIndex < days.length - 1 && (
+        <TouchableOpacity
+          style={styles.arrowRight}
+          onPress={() => scrollToIndex(currentIndex + 1)}
+        >
+          <Ionicons name="chevron-forward" size={28} color={colors.black} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

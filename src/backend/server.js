@@ -12,8 +12,8 @@ app.use(express.json());
 
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 
-// let lastResult = null;
-// let lastFetchTime = 0;
+const cache = {};
+const CACHE_TTL = 60 * 5 * 1000; // 5 minutes
 
 // default route to check if backend is running
 app.get("/", (req, res) => {
@@ -22,7 +22,12 @@ app.get("/", (req, res) => {
 
 app.get('/api/weatherToday', async (req, res) => {
   const { lat, lon, units = "metric" } = req.query;
-  if (!lat || !lon) return res.status(400).json({ error: 'lat/lon required' });
+  const cacheKey = `${lat},${lon},${units}`;
+  const now = Date.now();
+
+  if (cache[cacheKey] && now - cache[cacheKey].timestamp < CACHE_TTL) {
+    return res.json(cache[cacheKey].data);
+  }
 
   try {
     const [air, current] = await Promise.all([
@@ -45,6 +50,7 @@ app.get('/api/weatherToday', async (req, res) => {
       rain: current.data.rain ? 'Yes' : 'None',
       units,
     };
+    cache[cacheKey] = { data: weather, timestamp: now };
     res.json(weather);
   } catch (err) {
     console.error('Weather fetch failed:', err.message);
